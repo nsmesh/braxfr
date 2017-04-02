@@ -3,6 +3,7 @@
 # Default runtime settings
 CONCURRENCY=[cpus]*10
 CSV=0
+CSV_ADD_DOMAIN=0
 DOMAIN=
 DICTIONARY=www
 DICTIONARY_LIMIT=0
@@ -21,15 +22,15 @@ while test $# -gt 0; do
   case "$1" in
     -h|--help)
       echo " "
-      echo " 'bxfr' attempts to simulate a zone transfer for DOMAIN without use of AXFR."
+      echo " 'braxfr' attempts to simulate a zone transfer for DOMAIN without use of AXFR."
       echo " It uses dig and a brute force dictionary to discover resource records and "
-      echo " construct a zone file. Although not accuracy cannot be guaranteed, bxfr will"
+      echo " construct a zone file. Although not accuracy cannot be guaranteed, braxfr will"
       echo " often discover a significant number of resource records associated with"
-      echo " DOMAIN. bxfr performance is dependent on network capacity where it is run,"
+      echo " DOMAIN. braxfr performance is dependent on network capacity where it is run,"
       echo " concurrency, and resolve response time. An attempt will be made to discover and"
       echo " exclude wildcard records (listed as a single record * IN A...)"
       echo " "
-      echo " bxfr [options] DOMAIN"
+      echo " braxfr [options] DOMAIN"
       echo " "
       echo " options:"
       echo "  -c, --concurrency=CONCURRENCY Max DNS query concurrency. May be an mathmatical"
@@ -48,6 +49,10 @@ while test $# -gt 0; do
       echo "                                Name, TTL, Record Class, Record Type, Record Data"
       echo "                                and the first row is a header"
       echo "                                "
+      echo "  --csv-add-domain              If set in conjunction with --csv, then Domain"
+      echo "                                will be added as the first column in the CSV"
+      echo "                                output"
+      echo "                                "
       echo "  -d, --dictionary=DICTIONARY   Brute force dictionary - a list of words to"
       echo "                                query to 'discover' zone resource records. This"
       echo "                                argument may either be a comma separate list of"
@@ -64,7 +69,7 @@ while test $# -gt 0; do
       echo "                                "
       echo "  --dig=PATH_TO_DIG             Path to dig utility if not in PATH"
       echo "                                "
-      echo "  -h, --help                    show bxfr help"
+      echo "  -h, --help                    show braxfr help"
       echo "                                "
       echo "  -l, --limit=DICTIONARY_LIMIT  Max # of entries in DICTIONARY to query. For"
       echo "                                example, if DICTIONARY references a file with"
@@ -134,6 +139,10 @@ while test $# -gt 0; do
     --csv)
       shift
       CSV=1
+      ;;
+    --csv-add-domain)
+      shift
+      CSV_ADD_DOMAIN=1
       ;;
     -d)
       shift
@@ -217,6 +226,8 @@ while test $# -gt 0; do
 done
 DOMAIN=$1
 
+# Internal variables
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 # Converts a concurrency string to a numeric value by substituting [cpus] with
 # the corresponding # of CPUs present in the environment and evaluating any 
@@ -237,15 +248,55 @@ function get_dictionary() {
     dictionary=$1
     # Generate temporary dictionary file from csv command line args
     if ! [ -f $dictionary ] && ! [[ $dictionary =~ ^.*/.*$ ]]; then
-      # TODO: dnspop
-      dfile=/tmp/bxfr_$RANDOM
-      for word in ${dictionary//,/ }; do
-        echo $word >>$dfile
-      done
-      dictionary=$dfile
+      if [ $dictionary = "dnspop-1k" ] || [ $dictionary = "dnspop-10k" ] || [ $dictionary = "dnspop-100k" ] || [ $dictionary = "dnspop-1m" ]; then
+        filter=$DIR/dnspop/results/bitquark_*_subdomains_popular_1000
+        if [ $dictionary = "dnspop-10k" ]; then
+          filter="${filter}0"
+        elif [ $dictionary = "dnspop-100k" ]; then
+          filter="${filter}00"
+        elif [ $dictionary = "dnspop-1m" ]; then
+          filter="${filter}000"
+        fi
+        dfile=`ls $filter`
+        if [ $? -eq 0 ]; then
+          dictionary=$dfile
+        else
+          >&2 echo "Unable to locate DNSpop dictionary $dictionary using $filter - is DNSpop present?"
+          exit 1
+        fi
+      else
+        dfile=/tmp/braxfr_$RANDOM
+        for word in ${dictionary//,/ }; do
+          echo $word >>$dfile
+        done
+        dictionary=$dfile
+      fi
     fi
   fi
   echo $dictionary
+}
+
+# Writes a line to the output destination. This function uses the following
+# arguments
+# $1) OUTPUT arg
+# $2) Line to output
+function print_to_output() {
+  if [ $1 = "stdout" ]; then
+    echo $2
+  else
+    echo $2 >>$1
+  fi
+}
+
+# Prints verbose output if applicable. This function uses the following arguments:
+# $1) OUTPUT arg
+# $2) Message
+function print_verbose() {
+  if [ $1 = "stdout" ]; then
+    >&2 echo $2
+  else
+    echo $2
+  fi
 }
 
 
@@ -287,7 +338,7 @@ elif ! [[ $DOMAIN =~ ^.*\..*$ ]]; then
   >&2 echo "Invalid domain $DOMAIN"
   exit 1
 else
-  SOA=`$PATH_TO_DIG +short $DOMAIN SOA`
+  SOA=`$PATH_TO_DIG +noall +answer $DOMAIN SOA`
   if [ -z "$SOA" ]; then
     >&2 echo "Unable to determine SOA for $DOMAIN"
     exit 1
@@ -337,27 +388,6 @@ else
   done
 fi
 
-# Max name server connections
-max_ns_cons=$(($MAX_NS_CONS * 1))
-if [ $max_ns_cons -eq 0 ]; then
-  >&2 echo "--max-ns-cons=$MAX_NS_CONS is invalid"
-  exit 1
-fi
-
-# Output
-if ! [ "$OUTPUT" = "stdout" ] && ! [ "$OUTPUT" = "stderr" ]; then
-  rm -f $OUTPUT &>/dev/null
-  if [ -f $OUTPUT ]; then
-    >&2 echo "Output file --output=$OUTPUT already exists and cannot be removed"
-    exit 1
-  fi
-  touch $OUTPUT &>/dev/null
-  if ! [ -f $OUTPUT ]; then
-    >&2 echo "Unable to create output file --output=$OUTPUT"
-    exit 1
-  fi
-fi
-
 # Resource record types
 rr_types=()
 rr_br_types=()
@@ -386,23 +416,56 @@ if [ $wait -eq 0 ]; then
   exit 1
 fi
 
-echo "CONCURRENCY=$concurrency"
-echo "CSV=$CSV"
-echo "DICTIONARY=$dictionary"
-echo "DICTIONARY_LIMIT=$DICTIONARY_LIMIT"
-echo "DOMAIN=$DOMAIN"
-echo "NAME_SERVERS=${name_servers[@]}"
-echo "MAX_NS_CONS=$MAX_NS_CONS"
-echo "OUTPUT=$OUTPUT"
-echo "PATH_TO_DIG=$PATH_TO_DIG"
-echo "RR_TYPES=${rr_types[@]}"
-echo "BR_RR_TYPES=${rr_br_types[@]}"
-echo "TCP=$TCP"
-echo "VERBOSE=$VERBOSE"
-echo "WAIT=$WAIT"
-echo "SOA=$SOA"
+# Max name server connections
+max_ns_cons=$(($MAX_NS_CONS * 1))
+if [ $max_ns_cons -eq 0 ]; then
+  >&2 echo "--max-ns-cons=$MAX_NS_CONS is invalid"
+  exit 1
+fi
+
+# Output
+if ! [ "$OUTPUT" = "stdout" ]; then
+  rm -f $OUTPUT &>/dev/null
+  if [ -f $OUTPUT ]; then
+    >&2 echo "Output file --output=$OUTPUT already exists and cannot be removed"
+    exit 1
+  fi
+  touch $OUTPUT &>/dev/null
+  if ! [ -f $OUTPUT ]; then
+    >&2 echo "Unable to create output file --output=$OUTPUT"
+    exit 1
+  fi
+fi
+
+# Arguments valid
+if [ $VERBOSE -eq 1 ]; then
+  print_verbose $OUTPUT "arguments validated - running braxfr using arguments:"
+  print_verbose $OUTPUT "CONCURRENCY=$concurrency"
+  print_verbose $OUTPUT "CSV=$CSV"
+  print_verbose $OUTPUT "CSV_ADD_DOMAIN=$CSV_ADD_DOMAIN"
+  print_verbose $OUTPUT "DICTIONARY=$dictionary"
+  print_verbose $OUTPUT "DICTIONARY_LIMIT=$DICTIONARY_LIMIT"
+  print_verbose $OUTPUT "DOMAIN=$DOMAIN"
+  print_verbose $OUTPUT "NAME_SERVERS=${name_servers[@]}"
+  print_verbose $OUTPUT "MAX_NS_CONS=$MAX_NS_CONS"
+  print_verbose $OUTPUT "OUTPUT=$OUTPUT"
+  print_verbose $OUTPUT "PATH_TO_DIG=$PATH_TO_DIG"
+  print_verbose $OUTPUT "RR_TYPES=${rr_types[@]}"
+  print_verbose $OUTPUT "BR_RR_TYPES=${rr_br_types[@]}"
+  print_verbose $OUTPUT "TCP=$TCP"
+  print_verbose $OUTPUT "VERBOSE=$VERBOSE"
+  print_verbose $OUTPUT "WAIT=$WAIT"
+  print_verbose $OUTPUT "SOA=$SOA"
+fi
+
+print_to_output $OUTPUT "\$ORIGIN $DOMAIN."
+TTL=$(( 1*`echo $SOA | cut -d \  -f 2` ))
+if [ $TTL -gt 0 ]; then
+  print_to_output $OUTPUT "\$TTL $TTL"
+fi
+
 
 # Remove temporary dictionary file
-if [ "${dictionary:0:10}" = '/tmp/bxfr_' ]; then
+if [ "${dictionary:0:10}" = '/tmp/braxfr_' ]; then
   rm -f $dictionary
 fi

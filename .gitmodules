@@ -1,0 +1,3 @@
+[submodule "dnspop"]
+	path = dnspop
+	url = https://github.com/bitquark/dnspop.git

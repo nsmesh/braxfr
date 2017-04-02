@@ -1,3 +1,4 @@
+*.csv
 dictionaries
 name-servers.txt
 lambda/.build
