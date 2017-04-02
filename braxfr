@@ -1,0 +1,408 @@
+#!/bin/bash
+
+# Default runtime settings
+CONCURRENCY=[cpus]*10
+CSV=0
+DOMAIN=
+DICTIONARY=www
+DICTIONARY_LIMIT=0
+NAME_SERVERS=LOCAL,SOA
+MAX_NS_CONS=1
+OUTPUT=stdout
+PATH_TO_DIG=dig
+RR_TYPES=SOA,NS,MX,TXT,A,AAAA,CNAME,BR_A,BR_AAAA,BR_CNAME
+TCP=0
+VERBOSE=0
+WAIT=3
+
+
+# Extract user arguments
+while test $# -gt 0; do
+  case "$1" in
+    -h|--help)
+      echo " "
+      echo " 'bxfr' attempts to simulate a zone transfer for DOMAIN without use of AXFR."
+      echo " It uses dig and a brute force dictionary to discover resource records and "
+      echo " construct a zone file. Although not accuracy cannot be guaranteed, bxfr will"
+      echo " often discover a significant number of resource records associated with"
+      echo " DOMAIN. bxfr performance is dependent on network capacity where it is run,"
+      echo " concurrency, and resolve response time. An attempt will be made to discover and"
+      echo " exclude wildcard records (listed as a single record * IN A...)"
+      echo " "
+      echo " bxfr [options] DOMAIN"
+      echo " "
+      echo " options:"
+      echo "  -c, --concurrency=CONCURRENCY Max DNS query concurrency. May be an mathmatical"
+      echo "                                expression containing the token [cpus]. For"
+      echo "                                example --concurrency='[cpus]*10' in an 8 core"
+      echo "                                environment translates to 8*10=80 or"
+      echo "                                --concurrency=80. Actual concurrency will not"
+      echo "                                exceed the # of words in DICTIONARY or the "
+      echo "                                optional DICTIONARY_LIMIT value. Additionally,"
+      echo "                                actual concurrency will not exceed the number of"
+      echo "                                NAME_SERVERS specified * MAX_NS_CONS. Default"
+      echo "                                CONCURRENCY is '[cpus]*10'"
+      echo "                                "
+      echo "  --csv                         Record results in CSV instead of DNS Zone file"
+      echo "                                format. CSV files have the following columns:"
+      echo "                                Name, TTL, Record Class, Record Type, Record Data"
+      echo "                                and the first row is a header"
+      echo "                                "
+      echo "  -d, --dictionary=DICTIONARY   Brute force dictionary - a list of words to"
+      echo "                                query to 'discover' zone resource records. This"
+      echo "                                argument may either be a comma separate list of"
+      echo "                                words or the path to a file containing words"
+      echo "                                (line separated). This repository includes a"
+      echo "                                dnspop submodule with some pre-made brute force"
+      echo "                                dictionaries based on Rapid7's Project Sonar"
+      echo "                                Forward DNS data set. These dictionaries can be"
+      echo "                                referenced using the DICTIONARY values dnspop-1k,"
+      echo "                                dnspop-10k, dnspop-100k and dnspop-1m. See"
+      echo "                                https://github.com/bitquark/dnspop for more"
+      echo "                                information. Default DICTIONARY value is just"
+      echo "                                'www'"
+      echo "                                "
+      echo "  --dig=PATH_TO_DIG             Path to dig utility if not in PATH"
+      echo "                                "
+      echo "  -h, --help                    show bxfr help"
+      echo "                                "
+      echo "  -l, --limit=DICTIONARY_LIMIT  Max # of entries in DICTIONARY to query. For"
+      echo "                                example, if DICTIONARY references a file with"
+      echo "                                1 million words and DICTIONARY_LIMIT is 5000,"
+      echo "                                then only the first 5000 words will be checked."
+      echo "                                No default limit is assigned, meaning every word"
+      echo "                                in DICTIONARY will be checked"
+      echo "                                "
+      echo "  -n, --ns=NAME_SERVERS         Explicit name servers to use for DNS queries."
+      echo "                                Multiple name servers may be specified each"
+      echo "                                separated by a comma. Additionally, this"
+      echo "                                argument may reference a file containing a list"
+      echo "                                (line separated) of name servers to use. The"
+      echo "                                value 'SOA' will be translated to all"
+      echo "                                authoritative name servers assigned to DOMAIN."
+      echo "                                The value 'LOCAL' will be translated to all"
+      echo "                                resolvers listed in /etc/resolv.conf. Default "
+      echo "                                NAME_SERVERS is LOCAL,SOA meaning both local and"
+      echo "                                authoritative name servers will be used"
+      echo "                                "
+      echo "  -o, --output=OUTPUT           Path to a file where the resulting zone file/csv"
+      echo "                                should be written. If not specified, results"
+      echo "                                will be written to stdout"
+      echo "                                "
+      echo "  -t, --tcp                     Invoke TCP/IP DNS queries only (i.e. 'dig +tcp')"
+      echo "                                "
+      echo "  -v, --verbose                 Show verbose output. If used in conjunction with"
+      echo "                                OUTPUT=stdout, then verbose output will be"
+      echo "                                written to stderr, otherwise to stdout"
+      echo "                                "
+      echo "  -w, --wait=WAIT               Timeout for DNS queries in seconds - default 3"
+      echo "                                Name servers that time out consecutively will be"
+      echo "                                blacklisted from additional queries"
+      echo "                                "
+      echo "  -x, --max-ns-cons=MAX_NS_CONS Max concurrent queries for each NAME_SERVER. For"
+      echo "                                example, if MAX_NS_CONS=2, DICTIONARY contains"
+      echo "                                4k words, NAME_SERVERS defined 1k servers, and"
+      echo "                                CONCURRENCY>=2000, then brute force queries"
+      echo "                                would be completed in 2 iterations, each for 2k"
+      echo "                                words. Default MAX_NS_CONS is 1"
+      echo "                                "
+      echo "  -y, --rr-types=RR_TYPES       Type of DNS resource records to include in"
+      echo "                                resource discovery. For a full list of DNS"
+      echo "                                record types, see https://en.wikipedia.org/wiki/List_of_DNS_record_types"
+      echo "                                Record types prefixed with 'BR_' will be included"
+      echo "                                in brute force queries. Multiple record types"
+      echo "                                may be specified, each separated by a comma."
+      echo "                                Additionally, this argument may reference a file"
+      echo "                                containing a line separated list of record types."
+      echo "                                The default RR_TYPES value is as follows:"
+      echo "                                SOA,NS,MX,TXT,A,AAAA,CNAME,BR_A,BR_AAAA,BR_CNAME"
+      echo "                                The order of the record types is the same order"
+      echo "                                that will be used in the generated zone file/csv"
+      echo "                                "
+      echo " "
+      exit 0
+      ;;
+    -c)
+      shift
+      CONCURRENCY=$1
+      shift
+      ;;
+    --concurrency*)
+      CONCURRENCY=`echo $1 | sed -e 's/^[^=]*=//g'`
+      shift
+      ;;
+    --csv)
+      shift
+      CSV=1
+      ;;
+    -d)
+      shift
+      DICTIONARY=$1
+      shift
+      ;;
+    --dictionary*)
+      DICTIONARY=`echo $1 | sed -e 's/^[^=]*=//g'`
+      shift
+      ;;
+    --dig*)
+      PATH_TO_DIG=`echo $1 | sed -e 's/^[^=]*=//g'`
+      shift
+      ;;
+    -l)
+      shift
+      DICTIONARY_LIMIT=$1
+      shift
+      ;;
+    --limit*)
+      DICTIONARY_LIMIT=`echo $1 | sed -e 's/^[^=]*=//g'`
+      shift
+      ;;
+    -n)
+      shift
+      NAME_SERVERS=$1
+      shift
+      ;;
+    --ns*)
+      NAME_SERVERS=`echo $1 | sed -e 's/^[^=]*=//g'`
+      shift
+      ;;
+    -o)
+      shift
+      OUTPUT=$1
+      shift
+      ;;
+    --output*)
+      OUTPUT=`echo $1 | sed -e 's/^[^=]*=//g'`
+      shift
+      ;;
+    -t|--tcp)
+      shift
+      TCP=1
+      ;;
+    -v|--verbose)
+      shift
+      VERBOSE=1
+      ;;
+    -w)
+      shift
+      WAIT=$1
+      shift
+      ;;
+    --wait*)
+      WAIT=`echo $1 | sed -e 's/^[^=]*=//g'`
+      shift
+      ;;
+    -x)
+      shift
+      MAX_NS_CONS=$1
+      shift
+      ;;
+    --max-ns-cons*)
+      MAX_NS_CONS=`echo $1 | sed -e 's/^[^=]*=//g'`
+      shift
+      ;;
+    -y)
+      shift
+      RR_TYPES=$1
+      shift
+      ;;
+    --rr-types*)
+      RR_TYPES=`echo $1 | sed -e 's/^[^=]*=//g'`
+      shift
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
+DOMAIN=$1
+
+
+# Converts a concurrency string to a numeric value by substituting [cpus] with
+# the corresponding # of CPUs present in the environment and evaluating any 
+# mathmatical expressions
+function get_concurrency() {
+  concurrency=
+  if ! [ -z $1 ]; then
+    concurrency=$((${1/\[cpus\]/$(getconf _NPROCESSORS_ONLN)}))
+  fi
+  echo $concurrency
+}
+
+# Generates a temporary dictionary file if $DICTIONARY is a comma separated
+# list of words - otherwise returns the value of $DICTIONARY
+function get_dictionary() {
+  dictionary=
+  if ! [ -z $1 ]; then
+    dictionary=$1
+    # Generate temporary dictionary file from csv command line args
+    if ! [ -f $dictionary ] && ! [[ $dictionary =~ ^.*/.*$ ]]; then
+      # TODO: dnspop
+      dfile=/tmp/bxfr_$RANDOM
+      for word in ${dictionary//,/ }; do
+        echo $word >>$dfile
+      done
+      dictionary=$dfile
+    fi
+  fi
+  echo $dictionary
+}
+
+
+# Validate runtime parameters
+
+# dig
+$PATH_TO_DIG &>/dev/null
+if [ $? -ne 0 ]; then
+  if [ "$PATH_TO_DIG" = "dig" ]; then
+    >&2 echo "dig not found in PATH"
+  else
+    >&2 echo "Invalid dig path --dig=$PATH_TO_DIG"
+  fi
+  exit 1
+fi
+
+# concurrency
+concurrency=$(get_concurrency $CONCURRENCY)
+if [ -z $concurrency ] || [ $concurrency -eq 0 ]; then
+  >&2 echo "Unable to determine concurrency from --concurrency=$CONCURRENCY"
+  exit 1
+fi
+
+# dictionary
+dictionary=$(get_dictionary $DICTIONARY)
+if [ -z $dictionary ] || ! [ -f $dictionary ]; then
+  >&2 echo "Invalid dictionary --dictionary=$DICTIONARY"
+  exit 1
+fi
+
+# dictionary limit
+dictionary_limit=$(($DICTIONARY_LIMIT * 1))
+
+# domain
+if [ -z $DOMAIN ]; then
+  >&2 echo "DOMAIN is required"
+  exit 1
+elif ! [[ $DOMAIN =~ ^.*\..*$ ]]; then
+  >&2 echo "Invalid domain $DOMAIN"
+  exit 1
+else
+  SOA=`$PATH_TO_DIG +short $DOMAIN SOA`
+  if [ -z "$SOA" ]; then
+    >&2 echo "Unable to determine SOA for $DOMAIN"
+    exit 1
+  fi
+fi
+
+# name servers
+name_servers=()
+for ns in ${NAME_SERVERS//,/ }; do
+  ns_lower=$(echo "$ns" | awk '{print tolower($0)}')
+  if [ "$ns_lower" = "local" ]; then
+    while read ns; do
+      if [[ "${ns:11}" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        name_servers+=(${ns:11})
+      fi
+    done </etc/resolv.conf
+  elif [ "$ns_lower" = "soa" ]; then
+    name_servers+=(`$PATH_TO_DIG +short $DOMAIN NS`)
+  elif [ -f "$ns" ]; then
+    name_servers+=(`cat $ns`)
+  else
+    if [ -z $ns ]; then
+      >&2 echo "Invalid name server $ns"
+    else
+      name_servers+=($ns)
+    fi
+  fi
+done
+if [ ${#name_servers[@]} -eq 0 ]; then
+  >&2 echo "Unable to determine name servers from --ns=$NAME_SERVERS"
+  exit 1
+else
+  for ((i = 0; i < ${#name_servers[@]}; ++i)); do
+    ns=${name_servers[$i]}
+    if ! [[ "$ns" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+      if [ "${ns: -1}" = "." ]; then
+        ns=${ns%?}
+      fi
+      ip=`$PATH_TO_DIG +short $ns`
+      if [ -z $ip ]; then
+        unset $name_servers[$i]
+        >&2 echo "Unable to determine IP address for name server $ns"
+      else
+        name_servers[$i]=$ip
+      fi
+    fi
+  done
+fi
+
+# Max name server connections
+max_ns_cons=$(($MAX_NS_CONS * 1))
+if [ $max_ns_cons -eq 0 ]; then
+  >&2 echo "--max-ns-cons=$MAX_NS_CONS is invalid"
+  exit 1
+fi
+
+# Output
+if ! [ "$OUTPUT" = "stdout" ] && ! [ "$OUTPUT" = "stderr" ]; then
+  rm -f $OUTPUT &>/dev/null
+  if [ -f $OUTPUT ]; then
+    >&2 echo "Output file --output=$OUTPUT already exists and cannot be removed"
+    exit 1
+  fi
+  touch $OUTPUT &>/dev/null
+  if ! [ -f $OUTPUT ]; then
+    >&2 echo "Unable to create output file --output=$OUTPUT"
+    exit 1
+  fi
+fi
+
+# Resource record types
+rr_types=()
+rr_br_types=()
+for type in ${RR_TYPES//,/ }; do
+  type_lower=$(echo "$type" | awk '{print tolower($0)}')
+  if [ ${type_lower::3} = "br_" ]; then
+    rr_br_types+=(${type:3})
+  else
+    rr_types+=($type)
+  fi
+done
+valid_rr_types=(a aaaa afsdb apl caa cdnskey cds cert cname dhcid dlv dnskey ds ipseckey key kx loc mx naptr ns nsec nsec3 nsec3param ptr rrsig rp sig soa srv sshfp ta tkey tlsa tsig txt uri dname)
+validate_types=("${rr_br_types[@]}" "${rr_types[@]}")
+for type in ${validate_types[@]}; do
+  type_lower=$(echo "$type" | awk '{print tolower($0)}')
+  if [[ ! " ${valid_rr_types[@]} " =~ " ${type_lower} " ]]; then
+    >&2 echo "Resource record type $type is invalid"
+    exit 1
+  fi
+done
+
+# Wait
+wait=$(($WAIT * 1))
+if [ $wait -eq 0 ]; then
+  >&2 echo "--wait=$WAIT is invalid"
+  exit 1
+fi
+
+echo "CONCURRENCY=$concurrency"
+echo "CSV=$CSV"
+echo "DICTIONARY=$dictionary"
+echo "DICTIONARY_LIMIT=$DICTIONARY_LIMIT"
+echo "DOMAIN=$DOMAIN"
+echo "NAME_SERVERS=${name_servers[@]}"
+echo "MAX_NS_CONS=$MAX_NS_CONS"
+echo "OUTPUT=$OUTPUT"
+echo "PATH_TO_DIG=$PATH_TO_DIG"
+echo "RR_TYPES=${rr_types[@]}"
+echo "BR_RR_TYPES=${rr_br_types[@]}"
+echo "TCP=$TCP"
+echo "VERBOSE=$VERBOSE"
+echo "WAIT=$WAIT"
+echo "SOA=$SOA"
+
+# Remove temporary dictionary file
+if [ "${dictionary:0:10}" = '/tmp/bxfr_' ]; then
+  rm -f $dictionary
+fi
