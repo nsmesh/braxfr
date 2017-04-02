@@ -24,7 +24,7 @@ while test $# -gt 0; do
       echo " "
       echo " 'braxfr' attempts to simulate a zone transfer for DOMAIN without use of AXFR."
       echo " It uses dig and a brute force dictionary to discover resource records and "
-      echo " construct a zone file. Although not accuracy cannot be guaranteed, braxfr will"
+      echo " construct a zone file. Although accuracy is not 100% guaranteed, braxfr will"
       echo " often discover a significant number of resource records associated with"
       echo " DOMAIN. braxfr performance is dependent on network capacity where it is run,"
       echo " concurrency, and resolve response time. An attempt will be made to discover and"
