@@ -390,8 +390,21 @@ function get_dictionary() {
 # $2) Domain
 # $3) If 1, will not be printed if CSV==1
 # $4) If 1, then subdomain will be replaced with wildcard
+wildcard_a=()
+wildcard_aaaa=()
+wildcard_index=()
 function print_to_output() {
   local line=
+  wc_a=
+  wc_aaaa=
+  index_count=${#wildcard_index[@]}
+  for ((i = 0; i < $index_count; ++i)); do
+    if [ $2 = ${wildcard_index[$i]} ]; then
+      wc_a=${wildcard_a[$i]}
+      wc_aaaa=${wildcard_aaaa[$i]}
+      break
+    fi
+  done
   while IFS= read -r line ; do
     if ! [ -z "$line" ] && [ $CSV -eq 1 ]; then
       if [[ $line =~ ^([^[:blank:]]*)[[:blank:]]*([0-9]*)[[:blank:]]+[inIN]{2}[[:blank:]]+([^[:blank:]]+)[[:blank:]]*(.*)$ ]]; then
@@ -410,10 +423,10 @@ function print_to_output() {
       # Wildcard records
       if ! [ -z $4 ] && [ $4 -eq 1 ] && [[ "$line" =~ ^braxfr[0-9]+\.(.*)$ ]]; then
         line="*.${BASH_REMATCH[1]}"
-      elif [ "$wildcard_a" != "" ] && [[ "$line" == "*$wildcard_a" ]]; then
+      elif [ "$wc_a" != "" ] && [[ "$line" == *"$wc_a" ]]; then
         print_verbose "Skipping A wildcard record $line"
         continue
-      elif [ "$wildcard_aaaa" != "" ] && [[ "$line" == "*$wildcard_aaaa" ]]; then
+      elif [ "$wc_aaaa" != "" ] && [[ "$line" == *"$wc_aaaa" ]]; then
         print_verbose "Skipping AAAA wildcard record $line"
         continue
       fi
@@ -665,9 +678,9 @@ for type in ${RR_TYPES//,/ }; do
   type_lower=$(echo "$type" | awk '{print tolower($0)}')
   if [ ${type_lower::3} = "br_" ]; then
     rr_br_types+=(${type:3})
-    if [ $type_lower = "a" ]; then
+    if [ ${type_lower:3} = "a" ]; then
       has_a=1
-    elif [ $type_lower = "aaaa" ]; then
+    elif [ ${type_lower:3} = "aaaa" ]; then
       has_aaaa=1
     fi
   else
@@ -709,11 +722,14 @@ if [ $VERBOSE -eq 1 ]; then
   print_verbose "DICTIONARY=$dictionary"
   print_verbose "DICTIONARY_LIMIT=$DICTIONARY_LIMIT"
   print_verbose "MAX_NS_CONS=$MAX_NS_CONS"
+  print_verbose "NO_WILDCARD_CHECK=$NO_WILDCARD_CHECK"
   print_verbose "OUTPUT=$OUTPUT"
   print_verbose "PATH_TO_DIG=$PATH_TO_DIG"
   print_verbose "TCP=$TCP"
   print_verbose "VERBOSE=$VERBOSE"
   print_verbose "WAIT=$WAIT"
+  print_verbose "has_a=$has_a"
+  print_verbose "has_aaaa=$has_aaaa"
   >&2 echo "DOMAINS=${DOMAINS[@]}"
   >&2 echo "NAME_SERVERS=${name_servers[@]}"
   >&2 echo "RR_TYPES=$rr_types"
@@ -835,7 +851,11 @@ for DOMAIN in ${DOMAINS[@]}; do
     dig_batch $DOMAIN $rr_types
     
     # Determine if wildcard records exist
-    if [ $dictionary_limit -gt 0 ] && [ $NO_WILDCARD_CHECK -eq 0 ]; then
+    if [ $NO_WILDCARD_CHECK -eq 0 ]; then
+      index_count=${#wildcard_index[@]}
+      wildcard_a+=('')
+      wildcard_aaaa+=('')
+      wildcard_index+=($DOMAIN)
       for type in A AAAA; do
         ip=
         if [ $type = "AAAA" ] && [ $has_aaaa -eq 1 ]; then
@@ -849,10 +869,10 @@ for DOMAIN in ${DOMAINS[@]}; do
         if [ "$ip" != "" ]; then
           if [ $type = "AAAA" ]; then
             print_verbose "Discovered wildcard AAAA $ip"
-            wildcard_aaaa=$ip
+            wildcard_aaaa[$index_count]=$ip
           else
             print_verbose "Discovered wildcard A $ip"
-            wildcard_a=$ip
+            wildcard_a[$index_count]=$ip
           fi
           response=$(dig_cmd "braxfr${RANDOM}.${DOMAIN} $type") && if [ "$response" != "" ]; then print_to_output "$response" $DOMAIN 0 1; fi &
           ns_ptr=$(increment_ns_ptr)
