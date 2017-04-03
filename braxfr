@@ -238,7 +238,7 @@ while test $# -gt 0; do
       shift
       NO_WILDCARD_CHECK=1
       ;;
-    --ns-per-query)
+    --ns-per-query*)
       NS_PER_QUERY=`echo $1 | sed -e 's/^[^=]*=//g'`
       shift
       ;;
