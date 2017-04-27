@@ -14,6 +14,7 @@ DICTIONARY_LIMIT=1000000
 NAME_SERVERS=SOA
 NS_PER_QUERY=3
 MAX_NS_CONS=1
+NO_CHECK_HOSTNAMES=0
 NO_WILDCARD_CHECK=
 OUTPUT=stdout
 PATH_TO_DIG=dig
@@ -108,6 +109,13 @@ while test $# -gt 0; do
       echo "                                The value 'LOCAL' will be translated to all"
       echo "                                resolvers listed in /etc/resolv.conf. Default "
       echo "                                NAME_SERVERS is SOA"
+      echo "                                "
+      echo "  --no-check-hostnames          Don't check for hostnames. Default is to check"
+      echo "                                when a domain contains more than 1 period. For"
+      echo "                                example, if domain was www.yahoo.com, then this"
+      echo "                                hostname would be checked first, followed by"
+      echo "                                yahoo.com. SOA queries are used to check for"
+      echo "                                hostnames"
       echo "                                "
       echo "  --no-wildcard                 Don't check for wildcard records. Default is to"
       echo "                                check for wildcards if the dictionary is >100"
@@ -233,6 +241,10 @@ while test $# -gt 0; do
       shift
       NAME_SERVERS=$1
       shift
+      ;;
+    --no-check-hostnames)
+      shift
+      NO_CHECK_HOSTNAMES=1
       ;;
     --no-wildcard)
       shift
@@ -722,6 +734,7 @@ if [ $VERBOSE -eq 1 ]; then
   print_verbose "DICTIONARY=$dictionary"
   print_verbose "DICTIONARY_LIMIT=$DICTIONARY_LIMIT"
   print_verbose "MAX_NS_CONS=$MAX_NS_CONS"
+  print_verbose "NO_CHECK_HOSTNAMES=$NO_CHECK_HOSTNAMES"
   print_verbose "NO_WILDCARD_CHECK=$NO_WILDCARD_CHECK"
   print_verbose "OUTPUT=$OUTPUT"
   print_verbose "PATH_TO_DIG=$PATH_TO_DIG"
@@ -759,17 +772,43 @@ for DOMAIN in ${DOMAINS[@]}; do
     fi
     domain_name_servers=("${name_servers[@]}")
     
-    if [ $CSV -eq 0 ] && [ $SKIP_TTL -eq 0 ]; then
+    # Check for hostname and if present - reduce to base domain using SOA 
+    # lookup
+    SOA=
+    
+    if [ $NO_CHECK_HOSTNAMES -eq 0 ]; then
+      IFS='.' read -r -a domain_pieces <<< "$DOMAIN"
+      if [ ${#domain_pieces} -gt 2 ]; then
+        for ((i = 0; i < ${#domain_pieces} - 1; i++)); do
+          check=
+          for ((n = $i; n < ${#domain_pieces}; n++)); do
+            if [ "$check" != "" ]; then
+              check="${check}."
+            fi
+            check="${check}${domain_pieces[$n]}"
+          done
+          SOA=$(dig_cmd "$check SOA")
+          ns_ptr=$(increment_ns_ptr)
+          if [ "$SOA" != "" ]; then
+            if [ "$check" != "$DOMAIN" ]; then
+              print_verbose "Discovered hostname $DOMAIN - adjusting to base domain $check"
+              DOMAIN=$check
+            fi
+            break
+          fi
+        done
+      fi
+    fi
+    
+    if [ $CSV -eq 0 ] && [ $SKIP_TTL -eq 0 ] && [ "$SOA" = "" ]; then
       SOA=$(dig_cmd "$DOMAIN SOA")
       ns_ptr=$(increment_ns_ptr)
       if [ "$SOA" = "" ]; then
         >&2 echo "Unable to determine SOA for $DOMAIN"
         continue
       fi
-    else
-      SOA=
     fi
-  
+    
     # SOA name servers
     if [ $add_soa_ns -eq 1 ]; then
       ns_query=$(dig_cmd "$DOMAIN NS" 1)
