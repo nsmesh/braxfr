@@ -529,7 +529,7 @@ function dig_batch() {
   index=-1
   index_count=${#dig_batch_index[@]}
   for ((i = 0; i < $index_count; ++i)); do
-    if [ $1 = ${dig_batch_index[$i]} ]; then
+    if [ "$1" = "${dig_batch_index[$i]}" ]; then
       index=$i
       break
     fi
