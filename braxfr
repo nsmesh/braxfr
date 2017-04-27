@@ -794,23 +794,25 @@ for DOMAIN in ${DOMAINS[@]}; do
     if [ $NO_CHECK_HOSTNAMES -eq 0 ]; then
       IFS='.' read -r -a domain_pieces <<< "$DOMAIN"
       if [ ${#domain_pieces[@]} -gt 2 ]; then
-        print_verbose "Checking if $DOMAIN is a hostname [${#domain_pieces}]"
-        for ((i = 0; i < ${#domain_pieces} - 1; i++)); do
+        print_verbose "Checking if $DOMAIN is a hostname [${#domain_pieces[@]}]"
+        for ((i = 0; i < ${#domain_pieces[@]} - 1; i++)); do
           check=
-          for ((n = $i; n < ${#domain_pieces}; n++)); do
+          for ((n = $i; n < ${#domain_pieces[@]}; n++)); do
             if [ "$check" != "" ]; then
               check="${check}."
             fi
             check="${check}${domain_pieces[$n]}"
           done
-          SOA=$(dig_cmd "$check SOA")
-          ns_ptr=$(increment_ns_ptr)
-          if [ "$SOA" != "" ]; then
-            if [ "$check" != "$DOMAIN" ]; then
-              print_verbose "Discovered hostname $DOMAIN - adjusting to base domain $check"
-              DOMAIN=$check
+          if [ "$check" != "" ]; then 
+            SOA=$(dig_cmd "$check SOA")
+            ns_ptr=$(increment_ns_ptr)
+            if [ "$SOA" != "" ]; then
+              if [ "$check" != "$DOMAIN" ]; then
+                print_verbose "Discovered hostname $DOMAIN - adjusting to base domain $check"
+                DOMAIN=$check
+              fi
+              break
             fi
-            break
           fi
         done
       fi
