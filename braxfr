@@ -3,6 +3,7 @@
 # Default runtime settings
 BATCH_SIZE=10
 CONCURRENCY=[cpus]*10
+CSV_INDEX=
 CSV=0
 CSV_ADD_DOMAIN=0
 CSV_NO_HEADER=0
@@ -95,6 +96,10 @@ while test $# -gt 0; do
       echo "                                1 million words and DICTIONARY_LIMIT is 5000,"
       echo "                                then only the first 5000 words will be checked."
       echo "                                The default limit is 1 million words"
+      echo "                                "
+      echo "  --domain-csv-index=CSV_INDEX  If the domain input is a CSV file, this argument"
+      echo "                                may be used to designate the column comaining the"
+      echo "                                domain (first column=0)"
       echo "                                "
       echo "  --domain-limit=DOMAIN_LIMIT   Max # of DOMAINS to query The default limit is"
       echo "                                1 million words"
@@ -231,6 +236,10 @@ while test $# -gt 0; do
       ;;
     --limit*)
       DICTIONARY_LIMIT=`echo $1 | sed -e 's/^[^=]*=//g'`
+      shift
+      ;;
+    --domain-csv-index*)
+      CSV_INDEX=`echo $1 | sed -e 's/^[^=]*=//g'`
       shift
       ;;
     --domain-limit*)
@@ -766,6 +775,12 @@ for DOMAIN in ${DOMAINS[@]}; do
   fi
   
   while read DOMAIN; do
+    # Check for CSV formatted input
+    if ! [ -z $CSV_INDEX ]; then
+      IFS=',' read -r -a csv_pieces <<< "$DOMAIN"
+      DOMAIN="${csv_pieces[$CSV_INDEX]}"
+    fi
+    
     domain_counter=$(( $domain_counter + 1 ))
     if [ $domain_counter -gt $DOMAIN_LIMIT ]; then
       break
