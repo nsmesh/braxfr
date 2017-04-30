@@ -10,6 +10,7 @@ CSV_NO_HEADER=0
 DEFAULT_TTL=1h
 DOMAIN=
 DOMAIN_LIMIT=1000000
+DOMAIN_OFFSET=0
 DICTIONARY=www
 DICTIONARY_LIMIT=1000000
 NAME_SERVERS=SOA
@@ -101,8 +102,9 @@ while test $# -gt 0; do
       echo "                                may be used to designate the column comaining the"
       echo "                                domain (first column=0)"
       echo "                                "
-      echo "  --domain-limit=DOMAIN_LIMIT   Max # of DOMAINS to query The default limit is"
-      echo "                                1 million words"
+      echo "  --domain-limit=DOMAIN_LIMIT   Max # of DOMAINS to process - default is 1 million"
+      echo "                                "
+      echo "  --domain-offset=DOMAIN_OFFSET ODOMAINS offset - default is 0"
       echo "                                "
       echo "  -n, --ns=NAME_SERVERS         Explicit name servers to use for DNS queries."
       echo "                                Multiple name servers may be specified each"
@@ -244,6 +246,10 @@ while test $# -gt 0; do
       ;;
     --domain-limit*)
       DOMAIN_LIMIT=`echo $1 | sed -e 's/^[^=]*=//g'`
+      shift
+      ;;
+    --domain-offset*)
+      DOMAIN_OFFSET=`echo $1 | sed -e 's/^[^=]*=//g'`
       shift
       ;;
     -n)
@@ -768,6 +774,8 @@ for DOMAIN in ${DOMAINS[@]}; do
   if [ $domain_counter -gt $DOMAIN_LIMIT ]; then
     print_verbose "--domain-limit $DOMAIN_LIMIT reach - exiting"
     break
+  elif [ $domain_counter -lt $DOMAIN_OFFSET ]; then
+    continue
   fi
   if ! [ -f $DOMAIN ]; then
     echo "$DOMAIN" >$domain_file
