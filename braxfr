@@ -748,6 +748,8 @@ if [ $VERBOSE -eq 1 ]; then
   print_verbose "CSV_ADD_DOMAIN=$CSV_ADD_DOMAIN"
   print_verbose "DICTIONARY=$dictionary"
   print_verbose "DICTIONARY_LIMIT=$DICTIONARY_LIMIT"
+  print_verbose "DOMAIN_LIMIT=$DOMAIN_LIMIT"
+  print_verbose "DOMAIN_OFFSET=$DOMAIN_OFFSET"
   print_verbose "MAX_NS_CONS=$MAX_NS_CONS"
   print_verbose "NO_CHECK_HOSTNAMES=$NO_CHECK_HOSTNAMES"
   print_verbose "NO_WILDCARD_CHECK=$NO_WILDCARD_CHECK"
