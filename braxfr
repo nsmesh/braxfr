@@ -774,8 +774,6 @@ for DOMAIN in ${DOMAINS[@]}; do
   if [ $domain_counter -gt $DOMAIN_LIMIT ]; then
     print_verbose "--domain-limit $DOMAIN_LIMIT reach - exiting"
     break
-  elif [ $domain_counter -lt $DOMAIN_OFFSET ]; then
-    continue
   fi
   if ! [ -f $DOMAIN ]; then
     echo "$DOMAIN" >$domain_file
@@ -792,6 +790,8 @@ for DOMAIN in ${DOMAINS[@]}; do
     domain_counter=$(( $domain_counter + 1 ))
     if [ $domain_counter -gt $DOMAIN_LIMIT ]; then
       break
+    elif [ $domain_counter -lt $DOMAIN_OFFSET ]; then
+      continue
     fi
     domain_name_servers=("${name_servers[@]}")
     
