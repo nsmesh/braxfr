@@ -6,6 +6,8 @@ CONCURRENCY=[cpus]*10
 CSV_INDEX=
 CSV=0
 CSV_ADD_DOMAIN=0
+CSV_COLS=
+CSV_COL_VALS=
 CSV_NO_HEADER=0
 DEFAULT_TTL=1h
 DOMAIN=
@@ -46,7 +48,7 @@ while test $# -gt 0; do
       echo " braxfr [options] DOMAIN1 DOMAIN2 DOMAIN3 ... DOMAINN"
       echo " "
       echo " options:"
-      echo "  -b, --batch-size              # of queries to batch when invoking dig - default"
+      echo "  -b, --batch-size=BATCH_SIZE   # of queries to batch when invoking dig - default"
       echo "                                is 10"
       echo "                                "
       echo "  -c, --concurrency=CONCURRENCY Max DNS query concurrency. May be an mathmatical"
@@ -104,7 +106,15 @@ while test $# -gt 0; do
       echo "                                "
       echo "  --domain-limit=DOMAIN_LIMIT   Max # of DOMAINS to process - default is 1 million"
       echo "                                "
-      echo "  --domain-offset=DOMAIN_OFFSET ODOMAINS offset - default is 0"
+      echo "  --domain-offset=DOMAIN_OFFSET DOMAIN offset - default is 0"
+      echo "                                "
+      echo "  --meta-cols=CSV_COLS          optional comma separated list of meta column"
+      echo "                                headers to append to the csv header (ignored for"
+      echo "                                non-csv output or if --csv-no-header is set)"
+      echo "                                "
+      echo "  --meta-col-vals=CSV_COL_VALS  optional comma separated list of meta column"
+      echo "                                values to append to each csv row (ignored for"
+      echo "                                non-csv output"
       echo "                                "
       echo "  -n, --ns=NAME_SERVERS         Explicit name servers to use for DNS queries."
       echo "                                Multiple name servers may be specified each"
@@ -250,6 +260,14 @@ while test $# -gt 0; do
       ;;
     --domain-offset*)
       DOMAIN_OFFSET=`echo $1 | sed -e 's/^[^=]*=//g'`
+      shift
+      ;;
+    --csv-col-vals*)
+      CSV_COL_VALS=`echo $1 | sed -e 's/^[^=]*=//g'`
+      shift
+      ;;
+    --csv-cols*)
+      CSV_COLS=`echo $1 | sed -e 's/^[^=]*=//g'`
       shift
       ;;
     -n)
@@ -441,6 +459,9 @@ function print_to_output() {
           line=""
         fi
         line="${line}${BASH_REMATCH[1]},${BASH_REMATCH[2]},${BASH_REMATCH[3]},${BASH_REMATCH[4]}"
+        if ! [ -z $CSV_COL_VALS ]; then
+          line="${line},${CSV_COL_VALS}"
+        fi
       else
         >&2 echo "Unable to parse line for CSV output: $line"
         line=
@@ -896,6 +917,9 @@ for DOMAIN in ${DOMAINS[@]}; do
       cols='Name,TTL,Record Type,Record Data'
       if [ $CSV_ADD_DOMAIN -eq 1 ]; then
         cols="Domain,$cols"
+      fi
+      if ! [ -z $CSV_COLS ]; then
+        cols="${cols},${CSV_COLS}"
       fi
       # CSV header row
       if [ $FIRST_DOMAIN -eq 1 ] || [ "$OUTPUT" != "$BASE_OUTPUT" ]; then
