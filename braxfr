@@ -6,8 +6,6 @@ CONCURRENCY=[cpus]*10
 CSV_INDEX=
 CSV=0
 CSV_ADD_DOMAIN=0
-CSV_COLS=
-CSV_COL_VALS=
 CSV_NO_HEADER=0
 DEFAULT_TTL=1h
 DOMAIN=
@@ -15,6 +13,8 @@ DOMAIN_LIMIT=1000000
 DOMAIN_OFFSET=0
 DICTIONARY=www
 DICTIONARY_LIMIT=1000000
+META_COLS=
+META_COL_VALS=
 NAME_SERVERS=SOA
 NS_PER_QUERY=3
 MAX_NS_CONS=1
@@ -108,11 +108,11 @@ while test $# -gt 0; do
       echo "                                "
       echo "  --domain-offset=DOMAIN_OFFSET DOMAIN offset - default is 0"
       echo "                                "
-      echo "  --meta-cols=CSV_COLS          optional comma separated list of meta column"
+      echo "  --meta-cols=META_COLS         optional comma separated list of meta column"
       echo "                                headers to append to the csv header (ignored for"
       echo "                                non-csv output or if --csv-no-header is set)"
       echo "                                "
-      echo "  --meta-col-vals=CSV_COL_VALS  optional comma separated list of meta column"
+      echo "  --meta-col-vals=META_COL_VALS optional comma separated list of meta column"
       echo "                                values to append to each csv row (ignored for"
       echo "                                non-csv output"
       echo "                                "
@@ -262,12 +262,12 @@ while test $# -gt 0; do
       DOMAIN_OFFSET=`echo $1 | sed -e 's/^[^=]*=//g'`
       shift
       ;;
-    --csv-col-vals*)
-      CSV_COL_VALS=`echo $1 | sed -e 's/^[^=]*=//g'`
+    --meta-col-vals*)
+      META_COL_VALS=`echo $1 | sed -e 's/^[^=]*=//g'`
       shift
       ;;
-    --csv-cols*)
-      CSV_COLS=`echo $1 | sed -e 's/^[^=]*=//g'`
+    --meta-cols*)
+      META_COLS=`echo $1 | sed -e 's/^[^=]*=//g'`
       shift
       ;;
     -n)
@@ -459,8 +459,8 @@ function print_to_output() {
           line=""
         fi
         line="${line}${BASH_REMATCH[1]},${BASH_REMATCH[2]},${BASH_REMATCH[3]},${BASH_REMATCH[4]}"
-        if ! [ -z $CSV_COL_VALS ]; then
-          line="${line},${CSV_COL_VALS}"
+        if ! [ -z $META_COL_VALS ]; then
+          line="${line},${META_COL_VALS}"
         fi
       else
         >&2 echo "Unable to parse line for CSV output: $line"
@@ -910,7 +910,6 @@ for DOMAIN in ${DOMAINS[@]}; do
         fi
       fi
     fi
-    FIRST_DOMAIN=0
 
     # Zone file header - skipped for CSV
     if [ $CSV -eq 1 ] && [ $CSV_NO_HEADER -eq 0 ]; then
@@ -918,8 +917,8 @@ for DOMAIN in ${DOMAINS[@]}; do
       if [ $CSV_ADD_DOMAIN -eq 1 ]; then
         cols="Domain,$cols"
       fi
-      if ! [ -z $CSV_COLS ]; then
-        cols="${cols},${CSV_COLS}"
+      if ! [ -z $META_COLS ]; then
+        cols="${cols},${META_COLS}"
       fi
       # CSV header row
       if [ $FIRST_DOMAIN -eq 1 ] || [ "$OUTPUT" != "$BASE_OUTPUT" ]; then
@@ -937,6 +936,7 @@ for DOMAIN in ${DOMAINS[@]}; do
         print_to_output "\$TTL $DEFAULT_TTL" $DOMAIN 1
       fi
     fi
+    FIRST_DOMAIN=0
 
     # Non brute-force records
     dig_batch $DOMAIN $rr_types
