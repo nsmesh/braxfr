@@ -27,6 +27,7 @@ SKIP_TTL=0
 TCP=0
 VERBOSE=0
 WAIT=2
+WILDCARD_24=0
 
 
 # Extract user arguments
@@ -166,6 +167,10 @@ while test $# -gt 0; do
       echo "                                Name servers that time out consecutively will be"
       echo "                                blacklisted from additional queries"
       echo "                                "
+      echo "  --wildcard-24                 Apply IPv4 wildcard matches using a /24 CIDR (e.g."
+      echo "                                a wildcard test resulting in 192.168.1.233 will"
+      echo "                                match any IP address in 192.168.1.0/24"
+      echo "                                "
       echo "  -x, --max-ns-cons=MAX_NS_CONS Max concurrent queries for each NAME_SERVER. For"
       echo "                                example, if MAX_NS_CONS=2, DICTIONARY contains"
       echo "                                4k words, NAME_SERVERS defined 1k servers, and"
@@ -282,6 +287,10 @@ while test $# -gt 0; do
     --no-wildcard)
       shift
       NO_WILDCARD_CHECK=1
+      ;;
+    --wildcard-24)
+      shift
+      WILDCARD_24=1
       ;;
     --ns-per-query*)
       NS_PER_QUERY=`echo $1 | sed -e 's/^[^=]*=//g'`
@@ -437,6 +446,7 @@ function get_dictionary() {
 # $4) If 1, then subdomain will be replaced with wildcard
 wildcard_a=()
 wildcard_aaaa=()
+wildcard_cname=()
 wildcard_index=()
 function print_to_output() {
   local line=
@@ -447,6 +457,7 @@ function print_to_output() {
     if [ $2 = ${wildcard_index[$i]} ]; then
       wc_a=${wildcard_a[$i]}
       wc_aaaa=${wildcard_aaaa[$i]}
+      wc_cname=${wildcard_cname[$i]}
       break
     fi
   done
@@ -474,6 +485,9 @@ function print_to_output() {
       elif [ "$wc_a" != "" ] && [[ "$line" == *"$wc_a" ]]; then
         print_verbose "Skipping A wildcard record $line"
         continue
+      elif [ "$wc_cname" != "" ] && [[ "$line" == *"$wc_cname" ]]; then
+        print_verbose "Skipping CNAME wildcard record $line"
+        break
       elif [ "$wc_aaaa" != "" ] && [[ "$line" == *"$wc_aaaa" ]]; then
         print_verbose "Skipping AAAA wildcard record $line"
         continue
@@ -946,8 +960,9 @@ for DOMAIN in ${DOMAINS[@]}; do
       index_count=${#wildcard_index[@]}
       wildcard_a+=('')
       wildcard_aaaa+=('')
+      wildcard_cname+=('')
       wildcard_index+=($DOMAIN)
-      for type in A AAAA; do
+      for type in A AAAA CNAME; do
         ip=
         if [ $type = "AAAA" ] && [ $has_aaaa -eq 1 ]; then
           ip=$(dig_cmd "braxfr${RANDOM}.${DOMAIN} AAAA" 1)
@@ -955,15 +970,26 @@ for DOMAIN in ${DOMAINS[@]}; do
         elif [ $type = "A" ] && [ $has_a -eq 1 ]; then 
           ip=$(dig_cmd "braxfr${RANDOM}.${DOMAIN} A" 1)
           ns_ptr=$(increment_ns_ptr)
+        elif [ $type = "CNAME" ]; then 
+          ip=$(dig_cmd "braxfr${RANDOM}.${DOMAIN} CNAME" 1)
+          ns_ptr=$(increment_ns_ptr)
         fi
-      
+        
         if [ "$ip" != "" ]; then
           if [ $type = "AAAA" ]; then
             print_verbose "Discovered wildcard AAAA $ip"
             wildcard_aaaa[$index_count]=$ip
-          else
+          elif [ $type = "A" ]; then
             print_verbose "Discovered wildcard A $ip"
+            if [ $WILDCARD_24 -eq 1 ]; then
+              arr=(`echo ${ip//./ }`)
+              print_verbose "Wildcard checks will be based on ${arr[0]}.${arr[1]}.${arr[2]}.0/24"
+              ip="${arr[0]}.${arr[1]}.${arr[2]}."
+            fi
             wildcard_a[$index_count]=$ip
+          else
+            print_verbose "Discovered wildcard CNAME $ip"
+            wildcard_cname[$index_count]=$ip
           fi
           response=$(dig_cmd "braxfr${RANDOM}.${DOMAIN} $type") && if [ "$response" != "" ]; then print_to_output "$response" $DOMAIN 0 1; fi &
           ns_ptr=$(increment_ns_ptr)
