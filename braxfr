@@ -448,6 +448,9 @@ wildcard_a=()
 wildcard_aaaa=()
 wildcard_cname=()
 wildcard_index=()
+output_buffer=()
+output_buffer_ptr=-1
+output_buffer_max=10
 function print_to_output() {
   local line=
   wc_a=
@@ -485,13 +488,32 @@ function print_to_output() {
       elif [ "$wc_a" != "" ] && [[ "$line" == *"$wc_a" ]]; then
         print_verbose "Skipping A wildcard record $line"
         continue
-      elif [ "$wc_cname" != "" ] && [[ "$line" == *"$wc_cname" ]]; then
-        print_verbose "Skipping CNAME wildcard record $line"
-        break
       elif [ "$wc_aaaa" != "" ] && [[ "$line" == *"$wc_aaaa" ]]; then
         print_verbose "Skipping AAAA wildcard record $line"
         continue
+      elif [ "$wc_cname" != "" ] && [[ "$line" == *"$wc_cname" ]]; then
+        print_verbose "Skipping CNAME wildcard record $line"
+        break
       fi
+      
+      # Check if for duplicate output
+      is_duplicate=0
+      for l in "${output_buffer[@]}"; do
+        if [ "$l" = "$line" ]; then
+          is_duplicate=1
+          break
+        fi
+      done
+      if [ $is_duplicate -eq 1 ]; then
+        print_verbose "Skipping duplicate output $line"
+        continue
+      fi
+      output_buffer_ptr=$((output_buffer_ptr+1))
+      if [ $output_buffer_ptr -ge $output_buffer_max ]; then
+        output_buffer_ptr=0
+      fi
+      output_buffer[$output_buffer_ptr]="$line"
+      
       if [ $CSV -eq 0 ] || [ -z $3 ] || [ $3 -eq 0 ]; then
         if [ $OUTPUT = "stdout" ]; then
           echo $line
@@ -962,8 +984,9 @@ for DOMAIN in ${DOMAINS[@]}; do
       wildcard_aaaa+=('')
       wildcard_cname+=('')
       wildcard_index+=($DOMAIN)
-      for type in A AAAA CNAME; do
+      for type in CNAME A AAAA; do
         ip=
+        qtype=$type
         if [ $type = "AAAA" ] && [ $has_aaaa -eq 1 ]; then
           ip=$(dig_cmd "braxfr${RANDOM}.${DOMAIN} AAAA" 1)
           ns_ptr=$(increment_ns_ptr)
@@ -990,9 +1013,13 @@ for DOMAIN in ${DOMAINS[@]}; do
           else
             print_verbose "Discovered wildcard CNAME $ip"
             wildcard_cname[$index_count]=$ip
+            qtype=A
           fi
-          response=$(dig_cmd "braxfr${RANDOM}.${DOMAIN} $type") && if [ "$response" != "" ]; then print_to_output "$response" $DOMAIN 0 1; fi &
+          response=$(dig_cmd "braxfr${RANDOM}.${DOMAIN} $qtype") && if [ "$response" != "" ]; then print_to_output "$response" $DOMAIN 0 1; fi &
           ns_ptr=$(increment_ns_ptr)
+          if [ "$type" = "CNAME" ]; then
+            break;
+          fi
         fi
       done
       wait
