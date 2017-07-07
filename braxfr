@@ -485,13 +485,13 @@ function print_to_output() {
       # Wildcard records
       if ! [ -z $4 ] && [ $4 -eq 1 ] && [[ "$line" =~ ^braxfr[0-9]+\.(.*)$ ]]; then
         line="*.${BASH_REMATCH[1]}"
-      elif [ "$wc_a" != "" ] && [[ "$line" == *"$wc_a" ]]; then
+      elif [ "$wc_a" != "" ] && [[ "$line" == *"$wc_a"* ]]; then
         print_verbose "Skipping A wildcard record $line"
         continue
-      elif [ "$wc_aaaa" != "" ] && [[ "$line" == *"$wc_aaaa" ]]; then
+      elif [ "$wc_aaaa" != "" ] && [[ "$line" == *"$wc_aaaa"* ]]; then
         print_verbose "Skipping AAAA wildcard record $line"
         continue
-      elif [ "$wc_cname" != "" ] && [[ "$line" == *"$wc_cname" ]]; then
+      elif [ "$wc_cname" != "" ] && [[ "$line" == *"$wc_cname"* ]]; then
         print_verbose "Skipping CNAME wildcard record $line"
         break
       fi
