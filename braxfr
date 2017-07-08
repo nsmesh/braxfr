@@ -1050,6 +1050,7 @@ for DOMAIN in ${DOMAINS[@]}; do
         fi
         
         if [ "$ip" != "" ]; then
+          qtype=$type
           if [ $type = "AAAA" ]; then
             print_verbose "Discovered wildcard AAAA $ip"
             wildcard_aaaa[$index_count]=$ip
@@ -1068,11 +1069,10 @@ for DOMAIN in ${DOMAINS[@]}; do
           else
             print_verbose "Discovered wildcard CNAME $ip"
             wildcard_cname[$index_count]=$ip
+            qtype=A
           fi
-          if [ "$type" != "CNAME" ]; then
-            response=$(dig_cmd "braxfr${RANDOM}.${DOMAIN} $type") && if [ "$response" != "" ]; then print_to_output "$response" $DOMAIN 0 1; fi &
-            ns_ptr=$(increment_ns_ptr)
-          fi
+          response=$(dig_cmd "braxfr${RANDOM}.${DOMAIN} $qtype") && if [ "$response" != "" ]; then print_to_output "$response" $DOMAIN 0 1; fi &
+          ns_ptr=$(increment_ns_ptr)
         fi
       done
       wait
