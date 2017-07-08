@@ -485,13 +485,31 @@ function print_to_output() {
       # Wildcard records
       if ! [ -z $4 ] && [ $4 -eq 1 ] && [[ "$line" =~ ^braxfr[0-9]+\.(.*)$ ]]; then
         line="*.${BASH_REMATCH[1]}"
-      elif [ "$wc_a" != "" ] && [[ "$line" == *"$wc_a"* ]]; then
-        print_verbose "Skipping A wildcard record $line"
-        continue
-      elif [ "$wc_aaaa" != "" ] && [[ "$line" == *"$wc_aaaa"* ]]; then
-        print_verbose "Skipping AAAA wildcard record $line"
-        continue
-      elif [ "$wc_cname" != "" ] && [[ "$line" == *"$wc_cname"* ]]; then
+      elif [ "$wc_a" != "" ]; then
+        skip=0
+        for check in $wc_a; do
+          if [[ "$line" == *"$check" ]]; then
+            skip=1
+            break
+          fi
+        done
+        if [ $skip -eq 1 ]; then
+          print_verbose "Skipping A wildcard record $line"
+          continue
+        fi
+      elif [ "$wc_aaaa" != "" ]; then
+        skip=0
+        for check in $wc_aaaa; do
+          if [[ "$line" == *"$check" ]]; then
+            skip=1
+            break
+          fi
+        done
+        if [ $skip -eq 1 ]; then
+          print_verbose "Skipping AAAA wildcard record $line"
+          continue
+        fi
+      elif [ "$wc_cname" != "" ] && [[ "$line" == *"$wc_cname" ]]; then
         print_verbose "Skipping CNAME wildcard record $line"
         break
       fi
@@ -1005,9 +1023,13 @@ for DOMAIN in ${DOMAINS[@]}; do
           elif [ $type = "A" ]; then
             print_verbose "Discovered wildcard A $ip"
             if [ $WILDCARD_24 -eq 1 ]; then
-              arr=(`echo ${ip//./ }`)
-              print_verbose "Wildcard checks will be based on ${arr[0]}.${arr[1]}.${arr[2]}.0/24"
-              ip="${arr[0]}.${arr[1]}.${arr[2]}."
+              var temp_ip=
+              for ip in $ip; do
+                arr=(`echo ${ip//./ }`)
+                temp_ip="$temp_ip ${arr[0]}.${arr[1]}.${arr[2]}."
+              done
+              ip=temp_id
+              print_verbose "Wildcard checks will be based on /24 ranges: $ip"
             fi
             wildcard_a[$index_count]=$ip
           else
