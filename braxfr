@@ -1019,7 +1019,6 @@ for DOMAIN in ${DOMAINS[@]}; do
       wildcard_index+=($DOMAIN)
       for type in CNAME A AAAA; do
         ip=
-        qtype=$type
         if [ $type = "AAAA" ] && [ $has_aaaa -eq 1 ]; then
           ip=
           for ((i = 0; i < $WC_QUERIES; ++i)); do
@@ -1069,12 +1068,10 @@ for DOMAIN in ${DOMAINS[@]}; do
           else
             print_verbose "Discovered wildcard CNAME $ip"
             wildcard_cname[$index_count]=$ip
-            qtype=A
           fi
-          response=$(dig_cmd "braxfr${RANDOM}.${DOMAIN} $qtype") && if [ "$response" != "" ]; then print_to_output "$response" $DOMAIN 0 1; fi &
-          ns_ptr=$(increment_ns_ptr)
-          if [ "$type" = "CNAME" ]; then
-            break;
+          if [ "$type" != "CNAME" ]; then
+            response=$(dig_cmd "braxfr${RANDOM}.${DOMAIN} $type") && if [ "$response" != "" ]; then print_to_output "$response" $DOMAIN 0 1; fi &
+            ns_ptr=$(increment_ns_ptr)
           fi
         fi
       done
