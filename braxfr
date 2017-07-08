@@ -493,33 +493,37 @@ function print_to_output() {
       # Wildcard records
       if ! [ -z $4 ] && [ $4 -eq 1 ] && [[ "$line" =~ (braxfr[0-9]+)\. ]]; then
         line=${line/${BASH_REMATCH[1]}/*}
-      elif [ "$wc_a" != "" ]; then
-        skip=0
-        for check in $wc_a; do
-          if [[ "$line" =~ [,[:space:]]+A[,[:space:]]+${check//./\\.} ]]; then
-            skip=1
-            break
+      else
+        if [ "$wc_a" != "" ]; then
+          skip=0
+          for check in $wc_a; do
+            if [[ "$line" =~ [,[:space:]]+A[,[:space:]]+${check//./\\.} ]]; then
+              skip=1
+              break
+            fi
+          done
+          if [ $skip -eq 1 ]; then
+            print_verbose "Skipping A wildcard record $line"
+            continue
           fi
-        done
-        if [ $skip -eq 1 ]; then
-          print_verbose "Skipping A wildcard record $line"
-          continue
         fi
-      elif [ "$wc_aaaa" != "" ]; then
-        skip=0
-        for check in $wc_aaaa; do
-          if [[ "$line" =~ [,[:space:]]+AAAA[,[:space:]]+${check//./\\.} ]]; then
-            skip=1
-            break
+        if [ "$wc_aaaa" != "" ]; then
+          skip=0
+          for check in $wc_aaaa; do
+            if [[ "$line" =~ [,[:space:]]+AAAA[,[:space:]]+${check//./\\.} ]]; then
+              skip=1
+              break
+            fi
+          done
+          if [ $skip -eq 1 ]; then
+            print_verbose "Skipping AAAA wildcard record $line"
+            continue
           fi
-        done
-        if [ $skip -eq 1 ]; then
-          print_verbose "Skipping AAAA wildcard record $line"
-          continue
         fi
-      elif [ "$wc_cname" != "" ] && [[ "$line" =~ [,[:space:]]+CNAME[,[:space:]]+${wc_cname//./\\.} ]]; then
-        print_verbose "Skipping CNAME wildcard record $line"
-        break
+        if [ "$wc_cname" != "" ] && [[ "$line" =~ [,[:space:]]+CNAME[,[:space:]]+${wc_cname//./\\.} ]]; then
+          print_verbose "Skipping CNAME wildcard record $line"
+          break
+        fi
       fi
       
       # Check if for duplicate output
@@ -1017,6 +1021,7 @@ for DOMAIN in ${DOMAINS[@]}; do
       wildcard_aaaa+=('')
       wildcard_cname+=('')
       wildcard_index+=($DOMAIN)
+      cname_wildcard=0
       for type in CNAME A AAAA; do
         ip=
         if [ $type = "AAAA" ] && [ $has_aaaa -eq 1 ]; then
@@ -1070,9 +1075,13 @@ for DOMAIN in ${DOMAINS[@]}; do
             print_verbose "Discovered wildcard CNAME $ip"
             wildcard_cname[$index_count]=$ip
             qtype=A
+            cname_wildcard=1
           fi
-          response=$(dig_cmd "braxfr${RANDOM}.${DOMAIN} $qtype") && if [ "$response" != "" ]; then print_to_output "$response" $DOMAIN 0 1; fi &
-          ns_ptr=$(increment_ns_ptr)
+          
+          if [ "$type" != "A" ] || [ $cname_wildcard -eq 0 ]; then
+            response=$(dig_cmd "braxfr${RANDOM}.${DOMAIN} $qtype") && if [ "$response" != "" ]; then print_to_output "$response" $DOMAIN 0 1; fi &
+            ns_ptr=$(increment_ns_ptr)
+          fi
         fi
       done
       wait
