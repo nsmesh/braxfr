@@ -483,12 +483,12 @@ function print_to_output() {
     fi
     if [ "$line" != "" ] && [ "${line:0:1}" != ';' ]; then
       # Wildcard records
-      if ! [ -z $4 ] && [ $4 -eq 1 ] && [[ "$line" =~ ^braxfr[0-9]+\.(.*)$ ]]; then
-        line="*.${BASH_REMATCH[1]}"
+      if ! [ -z $4 ] && [ $4 -eq 1 ] && [[ "$line" =~ (braxfr[0-9]+)\. ]]; then
+        line=${line/${BASH_REMATCH[1]}/*}
       elif [ "$wc_a" != "" ]; then
         skip=0
         for check in $wc_a; do
-          if [[ "$line" == *"$check" ]]; then
+          if [[ "$line" =~ [^[:space:]]+${check//./\\.} ]]; then
             skip=1
             break
           fi
@@ -500,7 +500,7 @@ function print_to_output() {
       elif [ "$wc_aaaa" != "" ]; then
         skip=0
         for check in $wc_aaaa; do
-          if [[ "$line" == *"$check" ]]; then
+          if [[ "$line" =~ [^[:space:]]+${check//./\\.} ]]; then
             skip=1
             break
           fi
@@ -509,7 +509,7 @@ function print_to_output() {
           print_verbose "Skipping AAAA wildcard record $line"
           continue
         fi
-      elif [ "$wc_cname" != "" ] && [[ "$line" == *"$wc_cname" ]]; then
+      elif [ "$wc_cname" != "" ] && [[ "$line" =~ [^[:space:]]+${wc_cname//./\\.} ]]; then
         print_verbose "Skipping CNAME wildcard record $line"
         break
       fi
