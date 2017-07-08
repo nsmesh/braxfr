@@ -1009,7 +1009,7 @@ for DOMAIN in ${DOMAINS[@]}; do
           ip=$(dig_cmd "braxfr${RANDOM}.${DOMAIN} AAAA" 1)
           ns_ptr=$(increment_ns_ptr)
           if [ "$ip" = "" ]; then
-            ip=$(dig_cmd "braxfr${RANDOM}.${DOMAIN} A" 1)
+            ip=$(dig_cmd "braxfr${RANDOM}.${DOMAIN} AAAA" 1)
           fi
         elif [ $type = "A" ] && [ $has_a -eq 1 ]; then 
           ip=$(dig_cmd "braxfr${RANDOM}.${DOMAIN} A" 1)
@@ -1021,7 +1021,7 @@ for DOMAIN in ${DOMAINS[@]}; do
           ip=$(dig_cmd "braxfr${RANDOM}.${DOMAIN} CNAME" 1)
           ns_ptr=$(increment_ns_ptr)
           if [ "$ip" = "" ]; then
-            ip=$(dig_cmd "braxfr${RANDOM}.${DOMAIN} A" 1)
+            ip=$(dig_cmd "braxfr${RANDOM}.${DOMAIN} CNAME" 1)
           fi
         fi
         
