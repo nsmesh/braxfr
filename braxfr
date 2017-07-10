@@ -491,9 +491,9 @@ function print_to_output() {
     fi
     if [ "$line" != "" ] && [ "${line:0:1}" != ';' ]; then
       # Wildcard records
-      if ! [ -z $4 ] && [ $4 -eq 1 ] && [[ "$line" =~ (braxfr[0-9]+)\. ]]; then
+      if ! [ -z $4 ] && [ $4 -eq 1 ] && [[ "$line" =~ (brxfr[0-9]+)\. ]]; then
         line=${line/${BASH_REMATCH[1]}/*}
-      else
+      elif [ -z $4 ] || [ $4 -ne 1 ]; then
         if [ "$wc_a" != "" ]; then
           skip=0
           for check in $wc_a; do
@@ -520,9 +520,18 @@ function print_to_output() {
             continue
           fi
         fi
-        if [ "$wc_cname" != "" ] && [[ "$line" =~ [,[:space:]]+CNAME[,[:space:]]+${wc_cname//./\\.} ]]; then
-          print_verbose "Skipping CNAME wildcard record $line"
-          break
+        if [ "$wc_cname" != "" ]; then
+          skip=0
+          for check in $wc_cname; do
+            if [[ "$line" =~ [,[:space:]]+[CD]NAME[,[:space:]]+${check//./\\.} ]]; then
+              skip=1
+              break
+            fi
+          done
+          if [ $skip -eq 1 ]; then
+            print_verbose "Skipping CNAME wildcard record $line"
+            break
+          fi
         fi
       fi
       
@@ -1027,7 +1036,7 @@ for DOMAIN in ${DOMAINS[@]}; do
         if [ $type = "AAAA" ] && [ $has_aaaa -eq 1 ]; then
           ip=
           for ((i = 0; i < $WC_QUERIES; ++i)); do
-            temp=$(dig_cmd "braxfr${RANDOM}.${DOMAIN} AAAA" 1)
+            temp=$(dig_cmd "brxfr${RANDOM}.${DOMAIN} AAAA" 1)
             ns_ptr=$(increment_ns_ptr)
             if [ "$temp" != "" ]; then
               ip="$ip $temp"
@@ -1036,7 +1045,7 @@ for DOMAIN in ${DOMAINS[@]}; do
         elif [ $type = "A" ] && [ $has_a -eq 1 ]; then
           ip=
           for ((i = 0; i < $WC_QUERIES; ++i)); do
-            temp=$(dig_cmd "braxfr${RANDOM}.${DOMAIN} A" 1)
+            temp=$(dig_cmd "brxfr${RANDOM}.${DOMAIN} A" 1)
             ns_ptr=$(increment_ns_ptr)
             if [ "$temp" != "" ]; then
               ip="$ip $temp"
@@ -1045,10 +1054,10 @@ for DOMAIN in ${DOMAINS[@]}; do
         elif [ $type = "CNAME" ] && [ $has_a -eq 1 ]; then
           ip=
           for ((i = 0; i < $WC_QUERIES; ++i)); do
-            temp=$(dig_cmd "braxfr${RANDOM}.${DOMAIN} CNAME" 1)
+            temp=$(dig_cmd "brxfr${RANDOM}.${DOMAIN} CNAME" 1)
             ns_ptr=$(increment_ns_ptr)
             if [ "$temp" != "" ]; then
-              ip=$temp
+              ip="$temp"
               break
             fi
           done
@@ -1062,15 +1071,29 @@ for DOMAIN in ${DOMAINS[@]}; do
           elif [ $type = "A" ]; then
             print_verbose "Discovered wildcard A $ip"
             if [ $WILDCARD_24 -eq 1 ]; then
-              var temp_ip=
+              temp_ip=
               for ip in $ip; do
                 arr=(`echo ${ip//./ }`)
                 temp_ip="$temp_ip ${arr[0]}.${arr[1]}.${arr[2]}."
               done
-              ip=temp_id
+              ip=$temp_ip
               print_verbose "Wildcard checks will be based on /24 ranges: $ip"
             fi
-            wildcard_a[$index_count]=$ip
+            tip=
+            tcname=
+            for ip in $ip; do
+              if [[ $ip =~ ^[0-9]+\.[0-9]+\.[0-9]+\. ]]; then
+                tip="$tip $ip"
+              else
+                tcname="$tcname $ip"
+              fi
+            done
+            if [ "$tip" != "" ]; then
+              wildcard_a[$index_count]=$tip
+            fi
+            if [ "$tcname" != "" ]; then
+              wildcard_cname[$index_count]=$tcname
+            fi
           else
             print_verbose "Discovered wildcard CNAME $ip"
             wildcard_cname[$index_count]=$ip
@@ -1079,7 +1102,7 @@ for DOMAIN in ${DOMAINS[@]}; do
           fi
           
           if [ "$type" != "A" ] || [ $cname_wildcard -eq 0 ]; then
-            response=$(dig_cmd "braxfr${RANDOM}.${DOMAIN} $qtype") && if [ "$response" != "" ]; then print_to_output "$response" $DOMAIN 0 1; fi &
+            response=$(dig_cmd "brxfr${RANDOM}.${DOMAIN} $qtype") && if [ "$response" != "" ]; then print_to_output "$response" $DOMAIN 0 1; fi &
             ns_ptr=$(increment_ns_ptr)
           fi
         fi
