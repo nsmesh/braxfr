@@ -419,6 +419,7 @@ function get_dictionary() {
     # Generate temporary dictionary file from csv command line args
     if ! [ -f $dictionary ] && ! [[ $dictionary =~ ^.*/.*$ ]]; then
       if [ $dictionary = "dnspop-1k" ] || [ $dictionary = "dnspop-10k" ] || [ $dictionary = "dnspop-100k" ] || [ $dictionary = "dnspop-1m" ]; then
+        DIR=`dirname $(readlink -f $0)`
         filter=$DIR/dnspop/results/bitquark_*_subdomains_popular_1000
         if [ $dictionary = "dnspop-10k" ]; then
           filter="${filter}0"
