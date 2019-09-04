@@ -697,7 +697,7 @@ fi
 $PATH_TO_DIG &>/dev/null
 if [ $? -ne 0 ]; then
   if [ "$PATH_TO_DIG" = "dig" ]; then
-    >&2 echo "dig not found in PATH"
+    >&2 echo "dig not found in $PATH"
   else
     >&2 echo "Invalid dig path --dig=$PATH_TO_DIG"
   fi
