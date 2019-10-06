@@ -592,6 +592,7 @@ function print_verbose() {
 # $1) target + type (e.g. "mydomain.com A") - may be repeated for batch mode
 # $2) set to 1 for +short (otherwise +noall +answer will be assumed)
 # $3) set to 1 to only use non SOA name servers
+# $4) set to 1 to skip use of --dig-args
 # Returns the dig output. Exit with status code 1 on error
 function dig_cmd() {
   if [ $ns_ptr -ge $ns_count ]; then
@@ -628,7 +629,9 @@ function dig_cmd() {
     if [ -f "$DIG_ARGS" ]; then
       DIG_ARGS=$(cat $DIG_ARGS)
     fi
-    opts="$opts $DIG_ARGS"
+    if [ -z $4 ] || [ $4 -eq 0 ]; then
+      opts="$opts $DIG_ARGS"
+    fi
   fi
   opts="$opts +time=$WAIT"
   
@@ -973,8 +976,15 @@ for DOMAIN in ${DOMAINS[@]}; do
       ns_query=$(dig_cmd "$DOMAIN NS" 1)
       ns_ptr=$(increment_ns_ptr)
       if [ "$ns_query" = "" ]; then
-        >&2 echo "Unable to determine name servers [NS] for $DOMAIN"
-        continue
+        # Try again without extra dig arguments
+        if [ "$DIG_ARGS" != "" ]; then
+          ns_query=$(dig_cmd "$DOMAIN NS" 1 0 1)
+          ns_ptr=$(increment_ns_ptr)
+        fi
+        if [ "$ns_query" = "" ]; then
+          >&2 echo "Unable to determine name servers [NS] for $DOMAIN"
+          continue
+        fi
       fi
       for record in $ns_query; do
         if [ "$record" = "" ] || [ "${record:0:1}" = ";" ]; then
