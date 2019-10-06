@@ -821,7 +821,7 @@ else
       if [ "$ip" != "" ]; then
         # Try again without extra dig arguments
         if [ "$DIG_ARGS" != "" ]; then
-          ip=$(dig_cmd "$ns A" 1 1 0 1)
+          ip=$(dig_cmd "$ns A" 1 1 1)
           ns_ptr=$(increment_ns_ptr)
         fi
         if [ "$ip" != "" ]; then
@@ -1009,7 +1009,7 @@ for DOMAIN in ${DOMAINS[@]}; do
           if [ "$ip" = "" ]; then
             # Try again without extra dig arguments
             if [ "$DIG_ARGS" != "" ]; then
-              ip=$(dig_cmd "$record A" 1 1 0 1)
+              ip=$(dig_cmd "$record A" 1 1 1)
               ns_ptr=$(increment_ns_ptr)
             fi
             if [ "$ip" = "" ]; then
