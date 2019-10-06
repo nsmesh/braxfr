@@ -720,6 +720,7 @@ if [ $? -ne 0 ]; then
     >&2 echo "dig not found in $PATH"
   else
     >&2 echo "Invalid dig path --dig=$PATH_TO_DIG"
+    >&2 $PATH_TO_DIG
   fi
   exit 1
 fi
