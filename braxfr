@@ -96,7 +96,8 @@ while test $# -gt 0; do
       echo "                                "
       echo "  --dig=PATH_TO_DIG             Path to dig utility if not in PATH"
       echo "                                "
-      echo "  --dig-args=DIR_ARGS           Other arguments to passthru to dig"
+      echo "  --dig-args=DIR_ARGS           Other arguments to passthru to dig - may be a"
+      echo "                                path to a file containing these options"
       echo "                                "
       echo "  -h, --help                    show braxfr help"
       echo "                                "
@@ -624,6 +625,9 @@ function dig_cmd() {
     opts="$opts +tcp"
   fi
   if [ "$DIG_ARGS" != "" ]; then
+    if [ -f "$DIG_ARGS" ]; then
+      DIG_ARGS=$(cat $DIG_ARGS)
+    fi
     opts="$opts $DIG_ARGS"
   fi
   opts="$opts +time=$WAIT"
