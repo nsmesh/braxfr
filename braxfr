@@ -819,8 +819,17 @@ else
       ip=$(dig_cmd "$ns A" 1 1)
       ns_ptr=$(increment_ns_ptr)
       if [ "$ip" != "" ]; then
-        unset $name_servers[$i]
-        >&2 echo "Unable to determine IP address for name server $ns"
+        # Try again without extra dig arguments
+        if [ "$DIG_ARGS" != "" ]; then
+          ip=$(dig_cmd "$ns A" 1 1 0 1)
+          ns_ptr=$(increment_ns_ptr)
+        fi
+        if [ "$ip" != "" ]; then
+          unset $name_servers[$i]
+          >&2 echo "Unable to determine IP address for name server $ns"
+        else
+          name_servers[$i]=$ip
+        fi
       else
         name_servers[$i]=$ip
       fi
@@ -998,7 +1007,16 @@ for DOMAIN in ${DOMAINS[@]}; do
           ip=$(dig_cmd "$record A" 1 1)
           ns_ptr=$(increment_ns_ptr)
           if [ "$ip" = "" ]; then
-            >&2 echo "Unable to determine IP address for name server $record"
+            # Try again without extra dig arguments
+            if [ "$DIG_ARGS" != "" ]; then
+              ip=$(dig_cmd "$record A" 1 1 0 1)
+              ns_ptr=$(increment_ns_ptr)
+            fi
+            if [ "$ip" = "" ]; then
+              >&2 echo "Unable to determine IP address for name server $record"
+            else
+              domain_name_servers+=($ip)
+            fi
           else
             domain_name_servers+=($ip)
           fi
