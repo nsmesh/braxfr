@@ -8,6 +8,7 @@ CSV=0
 CSV_ADD_DOMAIN=0
 CSV_NO_HEADER=0
 DEFAULT_TTL=1h
+DIG_ARGS=
 DNSSEC=0
 DOMAIN=
 DOMAIN_LIMIT=1000000
@@ -94,6 +95,8 @@ while test $# -gt 0; do
       echo "                                'www'"
       echo "                                "
       echo "  --dig=PATH_TO_DIG             Path to dig utility if not in PATH"
+      echo "                                "
+      echo "  --dig-args=DIR_ARGS           Other arguments to passthru to dig"
       echo "                                "
       echo "  -h, --help                    show braxfr help"
       echo "                                "
@@ -247,6 +250,10 @@ while test $# -gt 0; do
       ;;
     --dictionary*)
       DICTIONARY=`echo $1 | sed -e 's/^[^=]*=//g'`
+      shift
+      ;;
+    --dig-args*)
+      DIG_ARGS=`echo $1 | sed -e 's/^[^=]*=//g'`
       shift
       ;;
     --dig*)
@@ -616,6 +623,9 @@ function dig_cmd() {
   if [ $TCP -eq 1 ]; then
     opts="$opts +tcp"
   fi
+  if [ "$DIG_ARGS" != "" ]; then
+    opts="$opts $DIG_ARGS"
+  fi
   opts="$opts +time=$WAIT"
   
   local cmd="$TIMEOUT $PATH_TO_DIG $ns $opts $1"
@@ -862,6 +872,7 @@ if [ $VERBOSE -eq 1 ]; then
   print_verbose "CSV_ADD_DOMAIN=$CSV_ADD_DOMAIN"
   print_verbose "DICTIONARY=$dictionary"
   print_verbose "DICTIONARY_LIMIT=$DICTIONARY_LIMIT"
+  print_verbose "DIG_ARGS=$DIG_ARGS"
   print_verbose "DNSSEC=$DNSSEC"
   print_verbose "DOMAIN_LIMIT=$DOMAIN_LIMIT"
   print_verbose "DOMAIN_OFFSET=$DOMAIN_OFFSET"
